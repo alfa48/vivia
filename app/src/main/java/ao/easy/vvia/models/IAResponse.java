@@ -1,16 +1,19 @@
 package ao.easy.vvia.models;
 
 public class IAResponse {
-    private String action;
-    private String target;
-    private int value;
+    public String action;
+    public String target;
+    //private int value;
+    public double value = -1; // opcional
+
 
 
     public IAResponse() {}
-    public IAResponse(String action, String target, int value) {
+    public IAResponse(String action, String target, double value) {
         this.action = action;
         this.target = target;
         this.value = value;
+
     }
 
     // getters e setters
@@ -20,5 +23,5 @@ public class IAResponse {
     public void setTarget(String target) {this.target = target;}
     public String getAction() { return action; }
     public String getTarget() { return target; }
-    public int getValue() { return value; }
+    public double getValue() { return value; }
 }
