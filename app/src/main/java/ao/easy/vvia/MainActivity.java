@@ -107,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 new Thread(() -> {
                                     HttpClient aiClient = new HttpClient();
-                                    String response = aiClient.sendMessage(message);
+                                    String response = aiClient.sendMessage(message, MainActivity.this);
                                     if (response == null) {
                                         runOnUiThread(() -> {
                                             editText.setEnabled(true);
