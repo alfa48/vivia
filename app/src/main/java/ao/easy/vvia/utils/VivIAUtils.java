@@ -1,6 +1,10 @@
 package ao.easy.vvia.utils;
 
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.util.Log;
+import android.view.View;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -57,6 +61,15 @@ public class VivIAUtils {
             Log.e("HttpClient", "Erro ao parsear resposta: ", e);
             return null;
         }
+    }
+
+    public static String extractText(String json) {
+       /* try {
+            JSONObject obj = new JSONObject(json);
+            return obj.getString("partial");
+        } catch (JSONException e) {
+            return "";
+        }*/return json;
     }
 
 }

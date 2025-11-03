@@ -5,11 +5,15 @@ import android.Manifest;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -23,6 +27,8 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -30,245 +36,180 @@ import androidx.core.view.WindowInsetsCompat;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+
 import ao.easy.vvia.core.http.HttpClient;
 import ao.easy.vvia.dispatcher.ActionDispatcher;
+import ao.easy.vvia.features.audio.AudioTranscriberVosk;
 import ao.easy.vvia.models.IAResponse;
 import ao.easy.vvia.models.IAResponseList;
+import ao.easy.vvia.utils.PulseAnimator;
 import ao.easy.vvia.utils.VivIAUtils;
 import ao.easy.vvia.wigdets.ClickableDrawableEditText;
 
 public class MainActivity extends AppCompatActivity {
-    Button buttonSend;
-    //EditText editText;
-    ClickableDrawableEditText editText;
-    TextView textView;
-    ImageView btnMic;
+    EditText editText;
+    TextView textView, textViewVivia;
+    ImageView btnMic, btnSend;
     private ActionDispatcher dispatcher;
     ProgressBar progressBar;
     private static final int REQUEST_BLUETOOTH_PERMISSION = 101;
+    private static final int REQUEST_RECORD_AUDIO = 1;
+    private SpeechRecognizer speechRecognizer;
+    Intent intent;
+
+    private PulseAnimator pulseAnimator;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
-        setContentView(R.layout.activity_main_);
+        setContentView(R.layout.min_x);
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
         requestBluetoothPermission();
+        initWidgets();
+        btnSend.setEnabled(false);
+        //btnMic.setEnabled(true);
 
-        btnMic = findViewById(R.id.btnMic);
+        // Iniciaactivity_main_lizar reconhecimento de voz
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
 
-        ObjectAnimator scaleX = ObjectAnimator.ofFloat(btnMic, "scaleX", 1f, 1.2f, 1f);
-        ObjectAnimator scaleY = ObjectAnimator.ofFloat(btnMic, "scaleY", 1f, 1.2f, 1f);
-
-// Configura repetição nos animadores individuais
-        scaleX.setRepeatCount(ValueAnimator.INFINITE);
-        scaleX.setRepeatMode(ValueAnimator.REVERSE);
-
-        scaleY.setRepeatCount(ValueAnimator.INFINITE);
-        scaleY.setRepeatMode(ValueAnimator.REVERSE);
-
-// Junta os dois em um AnimatorSet
-        AnimatorSet pulse = new AnimatorSet();
-        pulse.playTogether(scaleX, scaleY);
-        pulse.setDuration(2000);
-        pulse.start();
+        intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US"); // ou "pt-BR"
+        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+        intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true); // ⚡ Forçar modo offline
 
 
 
+        pulseAnimator = new PulseAnimator();
 
-
-        editText = (ClickableDrawableEditText) findViewById(R.id.editTextCommand);
-        dispatcher = new ActionDispatcher();
-        textView = findViewById(R.id.textResponse);
-        progressBar = findViewById(R.id.progressBar);
-
-
-        editText.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                if (event.getAction() == MotionEvent.ACTION_UP) {
-                    if (editText.getCompoundDrawables()[2] != null) { // drawableRight existe
-                        // verifica se o clique foi dentro da largura do drawableRight
-                        if (event.getX() >= (editText.getWidth() - editText.getPaddingRight() -
-                            editText.getCompoundDrawables()[2].getBounds().width())) {
-
-                            String message = editText.getText().toString();
-                            progressBar.setVisibility(View.VISIBLE);
-
-                            if (message.isEmpty()) {
-                                Toast.makeText(getApplicationContext(), "Mensagem invaliada: " + message, Toast.LENGTH_LONG).show();
-
-                            }else{
-
-
-                                new Thread(() -> {
-                                    HttpClient aiClient = new HttpClient();
-                                    String response = aiClient.sendMessage(message, MainActivity.this);
-                                    if (response == null) {
-                                        runOnUiThread(() -> {
-                                            editText.setEnabled(true);
-                                            progressBar.setVisibility(View.GONE);
-                                            textView.setText("Ops! Você atingiu o limite gratuito de hoje. Para continuar, adicione créditos à sua conta");
-                                        });
-                                        return;
-                                    }
-
-                                    try {
-                                        IAResponseList results = VivIAUtils.parseIaResponseList(response);
-
-                                        if (results != null || results.getActions() == null) {
-                                            Log.d("IA", "Mensagem: " + results.message);
-                                            for (IAResponse act : results.actions) {
-                                                Log.d("IA", act.action + " " + act.target + " " + act.value);
-                                            }
-                                        } else {
-                                            Log.e("IA", "Falha ao interpretar a resposta da IA");
-                                        }
-
-
-                                        // Executar ações na thread principal
-                                        runOnUiThread(() -> {
-                                            for (IAResponse ia : results.getActions()) {
-                                                dispatcher.dispatch(MainActivity.this, ia); // ✅ use Activity como contexto
-                                            }
-                                            runOnUiThread(() -> {
-                                                editText.setEnabled(true);
-                                                progressBar.setVisibility(View.GONE);
-                                                textView.setText(results.getMessage());
-                                            });
-
-                                        });
-
-                                    } catch (Exception e) {
-                                        Log.e("HttpClient", "Erro ao parsear resposta: " + response, e);
-                                        runOnUiThread(() -> {
-                                            editText.setEnabled(true);
-                                            progressBar.setVisibility(View.GONE);
-                                            textView.setText("Ops! Algo deu errado não está certo. Tente novamente mais tarde.");
-                                        });
-
-                                    }
-                                }).start();
-
-
-
-
-                            }
-
-                            editText.setText("");
-                            editText.performClick();
-                            return true; // evento consumido
-                        }
-                    }
-                }
-                return false; // deixa o EditText processar normalmente o clique
-            }
-
-        });
-
-
-        /*
-        buttonSend = findViewById(R.id.btnSend);
-
-
-
-
-        //send sms in vivia
-        buttonSend.setOnClickListener(v->{
-            buttonSend.setEnabled(false);// Desativa o botão
+        btnSend.setOnClickListener(v->{
             String message = editText.getText().toString();
             progressBar.setVisibility(View.VISIBLE);
 
-                if (message.isEmpty()) {
-                    Toast.makeText(getApplicationContext(), "Mensagem invaliada: " + message, Toast.LENGTH_LONG).show();
+            if (message.isEmpty()) {
+                Toast.makeText(getApplicationContext(), "Mensagem invaliada: " + message, Toast.LENGTH_LONG).show();
+                return;
+            }else{
+                new Thread(() -> {
+                    HttpClient aiClient = new HttpClient();
+                    String response = aiClient.sendMessage(message, MainActivity.this);
+                    if (response == null) {
+                        runOnUiThread(() -> {
+                            btnSend.setEnabled(false);
+                            progressBar.setVisibility(View.GONE);
+                            textView.setText("Ops! Você atingiu o limite gratuito de hoje. Para continuar, adicione créditos à sua conta");
+                        });
+                        return;
+                    }
 
-                }else{
+                    try {
+                        IAResponseList results = VivIAUtils.parseIaResponseList(response);
 
-
-                    new Thread(() -> {
-                        HttpClient aiClient = new HttpClient();
-                        String response = aiClient.sendMessage(message);
-                        if (response == null) {
-                            runOnUiThread(() -> {
-                                buttonSend.setEnabled(true);
-                                progressBar.setVisibility(View.GONE);
-                                textView.setText("Ops! Você atingiu o limite gratuito de hoje. Para continuar, adicione créditos à sua conta");
-                            });
-                            return;
-                        }
-
-                        try {
-                            IAResponseList results = VivIAUtils.parseIaResponseList(response);
-
-                            if (results != null || results.getActions() == null) {
-                                Log.d("IA", "Mensagem: " + results.message);
-                                for (IAResponse act : results.actions) {
-                                    Log.d("IA", act.action + " " + act.target + " " + act.value);
-                                }
-                            } else {
-                                Log.e("IA", "Falha ao interpretar a resposta da IA");
+                        if (results != null || results.getActions() == null) {
+                            Log.d("IA", "Mensagem: " + results.message);
+                            for (IAResponse act : results.actions) {
+                                Log.d("IA", act.action + " " + act.target + " " + act.value);
                             }
-
-
-                            // Executar ações na thread principal
-                            runOnUiThread(() -> {
-                                for (IAResponse ia : results.getActions()) {
-                                    dispatcher.dispatch(MainActivity.this, ia); // ✅ use Activity como contexto
-                                }
-                                runOnUiThread(() -> {
-                                    buttonSend.setEnabled(true);
-                                    progressBar.setVisibility(View.GONE);
-                                    textView.setText(results.getMessage());
-                                });
-
-                            });
-
-                        } catch (Exception e) {
-                            Log.e("HttpClient", "Erro ao parsear resposta: " + response, e);
-                            runOnUiThread(() -> {
-                                buttonSend.setEnabled(true);
-                                progressBar.setVisibility(View.GONE);
-                                textView.setText("Ops! Algo deu errado não está certo. Tente novamente mais tarde.");
-                            });
-
+                        } else {
+                            Log.e("IA", "Falha ao interpretar a resposta da IA");
                         }
-                    }).start();
 
+                        // Executar ações na thread principal
+                        runOnUiThread(() -> {
+                            for (IAResponse ia : results.getActions()) {
+                                dispatcher.dispatch(MainActivity.this, ia); // ✅ use Activity como contexto
+                            }
+                            runOnUiThread(() -> {
+                                btnSend.setEnabled(true);
+                                progressBar.setVisibility(View.GONE);
+                                textView.setText(results.getMessage());
+                            });
 
+                        });
 
+                    } catch (Exception e) {
+                        Log.e("HttpClient", "Erro ao parsear resposta: " + response, e);
+                        runOnUiThread(() -> {
+                            btnSend.setEnabled(true);
+                            progressBar.setVisibility(View.GONE);
+                            textView.setText("Ops! Algo deu errado não está certo. Tente novamente mais tarde.");
+                        });
 
-                }
+                    }
+                }).start();
 
+            }
+            runOnUiThread(() -> {
+                editText.setText("");
+                //editText.performClick();
+            });
         });
-        */
+
+          speechRecognizer.setRecognitionListener(new RecognitionListener() {
+            @Override public void onReadyForSpeech(Bundle params) {
+                Log.i("🌍 IdiomasSuportados", "Reconhecimento iniciado para: " +
+                    intent.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE));
+                textView.setText("Fale agora...");
+            }
+            @Override public void onBeginningOfSpeech() {}
+            @Override public void onRmsChanged(float dB) {}
+            @Override public void onBufferReceived(byte[] buffer) {}
+            @Override public void onEndOfSpeech() {}
+            @Override public void onError(int error) {
+                pulseAnimator.stop();
+                Log.e("🌍 IdiomasSuportados", "Erro no reconhecimento: " + error);
+                textViewVivia.setText("Erro: " + error);
+            }
+
+            @Override
+            public void onResults(Bundle results) {
+                ArrayList<String> matches = results.getStringArrayList(
+                    SpeechRecognizer.RESULTS_RECOGNITION);
+                runOnUiThread(() -> {
+                    pulseAnimator.stop();
+                    if (matches != null && !matches.isEmpty()) {
+                        editText.setText(matches.get(0));
+                        textView.setText(matches.get(0));
+                    }
+                });
+            }
+
+            @Override
+            public void onPartialResults(Bundle partialResults) {
+                ArrayList<String> partial = partialResults.getStringArrayList(
+                    SpeechRecognizer.RESULTS_RECOGNITION);
+                runOnUiThread(() -> {
+                    if (partial != null && !partial.isEmpty())
+                        textView.setText("Parcial: " + partial.get(0));
+                });
+
+            }
+
+            @Override public void onEvent(int eventType, Bundle params) {}
+        });
+
+        btnMic.setOnClickListener(v -> {
+            // Pedir permissão de microfone
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_RECORD_AUDIO);
+            }else{
+                pulseAnimator.start(btnMic);
+                textViewVivia.setText("Escutando...");
+                speechRecognizer.startListening(intent);
+            }
+        });
 
     }
-
-
-
-    private IAResponse parseIaResponse(String responseBody) throws JSONException {
-        JSONObject root = new JSONObject(responseBody);
-        JSONObject message = root.getJSONArray("choices")
-            .getJSONObject(0)
-            .getJSONObject("message");
-
-        // conteúdo como string JSON
-        String content = message.getString("content");
-
-        // parse do conteúdo JSON interno
-        JSONObject aiJson = new JSONObject(content);
-
-        String action = aiJson.getString("action");
-        String target = aiJson.getString("target");
-        int value = aiJson.getInt("value");
-
-        return new IAResponse(action, target, value);
-    }
-
 
     private void requestBluetoothPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -291,4 +232,21 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (speechRecognizer != null) {
+            speechRecognizer.destroy();
+        }
+    }
+
+    private void initWidgets() {
+        btnMic = findViewById(R.id.btnMic);
+        btnSend= findViewById(R.id.btnSend);
+        editText = (EditText) findViewById(R.id.editTextCommand);
+        dispatcher = new ActionDispatcher();
+        textView = findViewById(R.id.textResponse);
+        textViewVivia = findViewById(R.id.textViewVivia);
+        progressBar = findViewById(R.id.progressBar);
+    }
 }

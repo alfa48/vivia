@@ -36,7 +36,8 @@ import okhttp3.Response;
 
 public class HttpClient {
     private static final String BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
-    private static final String API_KEY = "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";
+    //private static final String API_KEY = "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";
+    private static final String API_KEY = "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";
     private final OkHttpClient client;
     private final MediaType JSON;
 

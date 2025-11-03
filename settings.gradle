@@ -20,4 +20,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Vívia"
-include ':app'
+//include ':app'
+include ':models', ':app'
