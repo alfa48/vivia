@@ -72,8 +72,8 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
         requestBluetoothPermission();
-        initWidgets();
-        btnSend.setEnabled(false);
+        initViews();
+        //btnSend.setEnabled(false);
         //btnMic.setEnabled(true);
 
         // Iniciaactivity_main_lizar reconhecimento de voz
@@ -240,7 +240,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void initWidgets() {
+    private void initViews() {
         btnMic = findViewById(R.id.btnMic);
         btnSend= findViewById(R.id.btnSend);
         editText = (EditText) findViewById(R.id.editTextCommand);
